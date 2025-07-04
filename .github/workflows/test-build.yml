@@ -1,0 +1,92 @@
+name: Test Build with Overscan Fix
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    runs-on: macos-latest  # Use GitHub's hosted macOS runner
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+    
+    - name: Install Dependencies
+      run: |
+        brew install cmake ninja bartycrouch
+        /usr/bin/python3 -m pip install polib
+    
+    - name: Set up Xcode
+      run: |
+        sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+        xcodebuild -version
+    
+    - name: Configure Project
+      run: |
+        # Update bundle identifier and team ID for testing
+        sed -i '' 's/use.your.own.organization.identifier/com.github.test.dolphinios/g' Source/iOS/App/Project/Config/BundleIdentifier.xcconfig
+        sed -i '' 's/your-team-id//g' Source/iOS/App/Project/Config/DevelopmentTeam.xcconfig
+    
+    - name: Build Archive
+      run: |
+        cd Source/iOS/App
+        xcodebuild clean archive \
+          -project DolphiniOS.xcodeproj \
+          -scheme "DiOS (NJB)" \
+          -configuration "Release (Non-Jailbroken)" \
+          -archivePath "DolphiniOS.xcarchive" \
+          -sdk iphoneos \
+          -destination generic/platform=iOS \
+          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGNING_REQUIRED=NO \
+          DOL_PBID_ORGANIZATION_IDENTIFIER="com.github.test.dolphinios" \
+          DOL_BUILD_SOURCE="development"
+    
+    - name: Export IPA
+      run: |
+        cd Source/iOS/App
+        # Create export options plist
+        cat > ExportOptions.plist << EOF
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>method</key>
+            <string>development</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>stripSwiftSymbols</key>
+            <false/>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <false/>
+        </dict>
+        </plist>
+        EOF
+        
+        # Export IPA
+        xcodebuild -exportArchive \
+          -archivePath "DolphiniOS.xcarchive" \
+          -exportPath "Export" \
+          -exportOptionsPlist "ExportOptions.plist"
+    
+    - name: Upload IPA
+      uses: actions/upload-artifact@v4
+      with:
+        name: DolphiniOS-Overscan-Fix
+        path: Source/iOS/App/Export/*.ipa
+        retention-days: 30
+    
+    - name: Upload Archive
+      uses: actions/upload-artifact@v4
+      with:
+        name: DolphiniOS-Archive
+        path: Source/iOS/App/DolphiniOS.xcarchive
+        retention-days: 7
