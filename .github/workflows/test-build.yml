@@ -48,40 +48,30 @@ jobs:
           DOL_PBID_ORGANIZATION_IDENTIFIER="com.github.test.dolphinios" \
           DOL_BUILD_SOURCE="development"
     
-    - name: Export IPA
+    - name: Create Unsigned IPA
       run: |
         cd Source/iOS/App
-        # Create export options plist
-        cat > ExportOptions.plist << EOF
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>method</key>
-            <string>development</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>stripSwiftSymbols</key>
-            <false/>
-            <key>uploadBitcode</key>
-            <false/>
-            <key>uploadSymbols</key>
-            <false/>
-        </dict>
-        </plist>
-        EOF
+        # Debug: Show what's in the archive
+        echo "Contents of archive:"
+        ls -la DolphiniOS.xcarchive/Products/Applications/
         
-        # Export IPA
-        xcodebuild -exportArchive \
-          -archivePath "DolphiniOS.xcarchive" \
-          -exportPath "Export" \
-          -exportOptionsPlist "ExportOptions.plist"
+        # Create IPA manually without code signing for testing
+        mkdir -p Export/Payload
+        cp -R "DolphiniOS.xcarchive/Products/Applications/DolphiniOS.app" "Export/Payload/"
+        
+        # Create IPA by zipping the Payload directory
+        cd Export
+        zip -r "DolphiniOS-Overscan-Fix.ipa" Payload/
+        
+        # List the created files
+        echo "Created IPA:"
+        ls -la DolphiniOS-Overscan-Fix.ipa
     
     - name: Upload IPA
       uses: actions/upload-artifact@v4
       with:
         name: DolphiniOS-Overscan-Fix
-        path: Source/iOS/App/Export/*.ipa
+        path: Source/iOS/App/Export/DolphiniOS-Overscan-Fix.ipa
         retention-days: 30
     
     - name: Upload Archive
